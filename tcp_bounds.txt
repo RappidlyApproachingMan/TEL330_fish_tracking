@@ -14,7 +14,7 @@ X,    Y,   Z
 -0.75,-0.90,0.20
 -0.25,-0.90,0.20
 
-
+Note, to keep the ed effector pointing down, rY and rZ must be zero
 
 visualization
 
