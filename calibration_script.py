@@ -27,7 +27,7 @@ camera_matrix = np.array([[intr.fx, 0,       intr.ppx],
 dist_coeffs = np.array(intr.coeffs)
 
 # --- Robot connection ---
-rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.100")
+rtde_r = rtde_receive.RTDEReceiveInterface("192.168.56.101")
 
 # --- Storage ---
 R_gripper2base_list = []
