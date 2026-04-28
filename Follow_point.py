@@ -105,8 +105,40 @@ class Camera():
     def get_fish_point(self, color_image):
         # Placeholder for fish point detection logic (e.g., color thresholding)
         # This should return the (x, y) pixel coordinates of the detected point on the fish
-        pass
+
+
+        src = np.asanyarray(color_image.get_data())
+
+        hsv = cv2.cvtColor(src, cv2.COLOR_BGR2HSV)
+
+        # create mask
+        mask = cv2.inRange(hsv, (0, 72, 120), (11, 255, 255))
+
+        # find contours
+        contours, _ = cv2.findContours(
+            mask,
+            cv2.RETR_EXTERNAL,
+            cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        out = src.copy()
+
+        # draw only the largest contour
+        if contours:
+            largest = max(contours, key=cv2.contourArea)
+            cv2.drawContours(out, [largest], -1, (0, 255, 0), 2)
+            # compute centroid of the largest contour
+            M = cv2.moments(largest)
+            if M["m00"] != 0:
+                cX = int(M["m10"] / M["m00"])
+                cY = int(M["m01"] / M["m00"])
+                return (cX, cY)
+            else:
+                return None
+
         
+    
+
 
         
 
