@@ -1,9 +1,12 @@
+import time
+
 import rtde_control
 import rtde_receive
 import numpy as np
 import cv2
 import pyrealsense2 as rs
 from scipy.spatial.transform import Rotation as R
+import threading as thrd
 
 """
 Using a realsense camera, we detect the 3d position of the point on the fish.
@@ -27,7 +30,11 @@ we can then use moveL to move the robot asynchronously to the point, and use the
 """
 
 ROBOT_IP = "192.168.56.101"
-SPEED = 0.2
+SPEED = 0.5
+
+#read t_cam_to_base from  T_base_camera.npy
+T_CAM_TO_BASE = np.load("TEL330_fish_tracking/T_base_camera.npy")
+
 
 
 class Camera():
@@ -55,9 +62,9 @@ class Camera():
         self.depth_scale = depth_sensor.get_depth_scale()
 
         self.align = rs.align(rs.stream.color)
+    
 
-
-        self.T_cam_to_base = None # This should be set to the actual transformation matrix from camera to robot base frame after calibration
+        self.T_cam_to_base = T_CAM_TO_BASE # Set the transformation matrix from camera to robot base frame
 
         #openCV window for displaying the camera feed and getting user input
         cv2.namedWindow("Camera", cv2.WINDOW_NORMAL)
@@ -68,18 +75,20 @@ class Camera():
         aligned_frames = self.align.process(frames)
         depth_frame = aligned_frames.get_depth_frame()
         color_frame = aligned_frames.get_color_frame()
+
+        
         if not depth_frame or not color_frame:
             return None, None
 
         depth_image = np.asanyarray(depth_frame.get_data())
         color_image = np.asanyarray(color_frame.get_data())
-
+        
         return depth_image, color_image
     
-    def display_frames(self, depth_image, color_image):
+    def display_frames(self, color_image, masked_image):
         """ displays the depth and color frames side by side in an opencv window """
-        depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
-        images = np.hstack((color_image, depth_colormap))
+        if masked_image is not None:
+            images = np.hstack((color_image, masked_image))
         cv2.imshow("Camera", images)
         cv2.waitKey(1)
 
@@ -89,7 +98,7 @@ class Camera():
             return None
         # Process the color image to find the point on the fish (e.g., using color thresholding)
         # For simplicity, let's assume we have a function that returns the pixel coordinates of the point
-        pixel_coords = self.get_fish_point(color_image)
+        pixel_coords, out = self.get_fish_point(color_image)
 
         if pixel_coords is None:
             return None
@@ -100,14 +109,18 @@ class Camera():
         # Convert pixel coordinates and depth value to camera coordinates
         point_3d_camera = self.pixel_to_camera_coordinates(pixel_coords, depth_value)
 
-        return point_3d_camera
+        return point_3d_camera # returns (X, Y, Z) in camera coordinates, or None if detection fails
 
-    def get_fish_point(self, color_image):
+
+    def get_fish_point(self, masked_image):
         # Placeholder for fish point detection logic (e.g., color thresholding)
         # This should return the (x, y) pixel coordinates of the detected point on the fish
 
 
-        src = np.asanyarray(color_image.get_data())
+        src = masked_image.copy() # already an array, no need to convert
+
+        if len(src.shape) == 2:  # If the image is grayscale, convert to BGR
+            src = cv2.cvtColor(src, cv2.COLOR_GRAY2BGR)
 
         hsv = cv2.cvtColor(src, cv2.COLOR_BGR2HSV)
 
@@ -132,7 +145,7 @@ class Camera():
             if M["m00"] != 0:
                 cX = int(M["m10"] / M["m00"])
                 cY = int(M["m01"] / M["m00"])
-                return (cX, cY)
+                return (cX, cY), out
             else:
                 return None
 
@@ -190,38 +203,60 @@ class Controller():
     def update_point(self):
         point_3d_camera = self.camera.get_point()
         if point_3d_camera is not None:
-            self.current_point = self.camera.pixel_to_robot_coordinates(point_3d_camera)
+            camera_point = self.camera.pixel_to_robot_coordinates(point_3d_camera)
+            # add rx, ry, rz to the point for moveL
+            self.current_point = camera_point + [0.0, 3.14, 0.0]
+
             # note that this gives the x,y,z of the point. We want the arm to follow from above, so z should be the height of the arm.
             self.current_point[2] = self.END_EFFECTOR_HEIGHT
 
+            print(f"Updated point: {self.current_point}")
+
+
     def follow_point(self, point_3d_robot):
         # Move asynchronously to the detected point in robot coordinates
-        while True:
-            self.update_point()
-            if point_3d_robot is not None:
-                self.rtde_c.moveL(point_3d_robot, SPEED, 0.5, True)
+        self.update_point()
+        if point_3d_robot is not None:
+            self.rtde_c.moveL(point_3d_robot, SPEED, 0.5, True)
 
 
     def stop(self):
         self.rtde_c.stopL()
-        self.update_thread.join()
-        self.follow_thread.join()
         cv2.destroyAllWindows()
 
     def run(self):
+        #move to start position
+        start_position = [-0.400, 0.60, self.END_EFFECTOR_HEIGHT, 0.0, 3.14, 0.0]  # Example start position in robot coordinates
+        self.rtde_c.moveL(start_position, SPEED, 0.5, True)
+
+        update_point_thread = thrd.Thread(target=self.update_point)
+        update_point_thread.daemon = True
+        update_point_thread.start()
+
         while True:
-            self.camera.display_frames(*self.camera.get_frames())
+            depth, color, = self.camera.get_frames()
+            if self.camera.get_fish_point(color) is not None:
+                _, masked = self.camera.get_fish_point(color)
+            self.camera.display_frames(color, masked)
+
+            
             key = cv2.waitKey(1) & 0xFF
-            if key == ord("q") or key == 27:  # 'q' or ESC to quit
+            if key == ord("s"):
+                print("Starting movement...")
+
+                move_thread = thrd.Thread(target=self.follow_point, args=(self.current_point,), daemon=True)
+                move_thread.start()
+
+
+            elif key == ord("q") or key == 27:  # 'q' or ESC to quit
                 print("Exiting...")
                 self.stop()
                 break
+            
             elif key == ord("e"):  # 'e' to stop movement immediately
                 print("Stopping movement...")
                 self.rtde_c.stopL()
-            elif key == ord("s"):  # 's' to start movement immediately
-                print("Starting movement...")
-                self.follow_point(self.current_point)
+                        
 
 
 
