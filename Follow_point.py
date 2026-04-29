@@ -97,14 +97,16 @@ class Camera():
         if depth_image is None or color_image is None:
             return None
         # Process the color image to find the point on the fish (e.g., using color thresholding)
-        # For simplicity, let's assume we have a function that returns the pixel coordinates of the point
         pixel_coords, out = self.get_fish_point(color_image)
 
         if pixel_coords is None:
             return None
 
         # Get the depth value at the detected pixel coordinates
-        depth_value = depth_image[pixel_coords[1], pixel_coords[0]]
+        #it needs to be the mean of a small window around the pixel coordinates to be more robust to noise
+
+        depth_value = np.mean(depth_image[pixel_coords[1]-2:pixel_coords[1]+3, pixel_coords[0]-2:pixel_coords[0]+3])
+
 
         # Convert pixel coordinates and depth value to camera coordinates
         point_3d_camera = self.pixel_to_camera_coordinates(pixel_coords, depth_value)
@@ -165,27 +167,36 @@ class Camera():
             return None  # No depth data at this pixel
 
         # RealSense depth is in millimeters — convert to meters
-        Z = depth_value * self.depth_scale  # depth_scale is usually 0.001
+        depth = depth_value * self.depth_scale  # depth_scale is usually 0.001
 
         u, v = pixel_coords
+        #use SDK helper function to deproject pixel to point in camera space
+        point_3d = rs.rs2_deproject_pixel_to_point(self.intrinsics, [u, v], depth)
+        X, Y, Z = point_3d   
 
-        # Unproject using pinhole camera model
-        X = (u - self.cx) * Z / self.fx
-        Y = (v - self.cy) * Z / self.fy
+        #print(point_3d)
+
+        # # Unproject using pinhole camera model
+        # X = (u - self.cx) * Z / self.fx
+        # Y = (v - self.cy) * Z / self.fy
 
         return (X, Y, Z)
     def pixel_to_robot_coordinates(self, point_3d_camera):
         """Transform a 3D point from camera frame to robot base frame."""
+        #NOTE: named incorrectly, this takes a coordinate in the camera 3d cordinate space
         if point_3d_camera is None:
             return None
 
         X_c, Y_c, Z_c = point_3d_camera
 
         # Homogeneous point in camera space
-        P_cam = np.array([X_c, Y_c, Z_c, 1.0])
+        P_cam = np.array([X_c, Y_c, Z_c])
+
+        R_cam2base = self.T_cam_to_base[:3, :3]
+        t_cam2base = self.T_cam_to_base[:3,  3]
 
         # Apply transform
-        P_robot = self.T_cam_to_base @ P_cam
+        P_robot = R_cam2base @ P_cam + t_cam2base
 
         return list(P_robot[:3])  # [X, Y, Z] in robot base frame
         
@@ -199,6 +210,10 @@ class Controller():
         self.current_point = None
 
         self.END_EFFECTOR_HEIGHT = 0.40
+
+
+        self._running = False  # Controls whether follow loop is active
+        self._lock = thrd.Lock()  # Protects self.current_point
 
     def update_point(self):
         point_3d_camera = self.camera.get_point()
@@ -225,36 +240,58 @@ class Controller():
         cv2.destroyAllWindows()
 
     def run(self):
+
+        def detection_loop():
+            """Continuously updates the detected fish point."""
+            while True:
+                self.update_point()  # updates self.current_point
+
+        def movement_loop():
+            """Continuously moves the robot to the latest point."""
+            while self._running:
+                with self._lock:
+                    point = self.current_point
+                if point is not None:
+                    self.rtde_c.moveL(point, SPEED, 0.5, True)
+                    time.sleep(5)  # Small delay to prevent spamming commandsq
+
+        update_point_thread = thrd.Thread(target=detection_loop)
+        update_point_thread.daemon = True
+        update_point_thread.start()
+
         #move to start position
         start_position = [-0.400, 0.60, self.END_EFFECTOR_HEIGHT, 0.0, 3.14, 0.0]  # Example start position in robot coordinates
         self.rtde_c.moveL(start_position, SPEED, 0.5, True)
 
-        update_point_thread = thrd.Thread(target=self.update_point)
-        update_point_thread.daemon = True
-        update_point_thread.start()
+
 
         while True:
             depth, color, = self.camera.get_frames()
+            # Chat snakka noe om å legge til masked = None her
             if self.camera.get_fish_point(color) is not None:
                 _, masked = self.camera.get_fish_point(color)
             self.camera.display_frames(color, masked)
 
+            # move_thread = thrd.Thread(target=self.follow_point, args=(self.current_point,), daemon=True)
+            # move_thread.start()
             
             key = cv2.waitKey(1) & 0xFF
+            
             if key == ord("s"):
                 print("Starting movement...")
+                self._running = True
+                movement_thread = thrd.Thread(target=movement_loop, daemon=True)
+                movement_thread.start()
 
-                move_thread = thrd.Thread(target=self.follow_point, args=(self.current_point,), daemon=True)
-                move_thread.start()
-
-
-            elif key == ord("q") or key == 27:  # 'q' or ESC to quit
+            if key == ord("q") or key == 27:  # 'q' or ESC to quit
                 print("Exiting...")
+                self._running = False
                 self.stop()
                 break
             
             elif key == ord("e"):  # 'e' to stop movement immediately
                 print("Stopping movement...")
+                self._running = False
                 self.rtde_c.stopL()
                         
 
