@@ -33,7 +33,8 @@ ROBOT_IP = "192.168.56.101"
 SPEED = 0.5
 
 #read t_cam_to_base from  T_base_camera.npy
-T_CAM_TO_BASE = np.load("TEL330_fish_tracking/T_base_camera.npy")
+#T_CAM_TO_BASE = np.load("TEL330_fish_tracking/T_base_camera.npy")
+T_CAM_TO_BASE = np.load("TEL330_fish_tracking/T_camera_base.npy")
 
 
 
