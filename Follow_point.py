@@ -98,7 +98,10 @@ class Camera():
         if depth_image is None or color_image is None:
             return None
         # Process the color image to find the point on the fish (e.g., using color thresholding)
-        pixel_coords, out = self.get_fish_point(color_image)
+        if self.get_fish_point(color_image) is not None:
+            pixel_coords, out = self.get_fish_point(color_image)
+        else:
+            pixel_coords = None
 
         if pixel_coords is None:
             return None
@@ -252,7 +255,7 @@ class Controller():
         self._lock = thrd.Lock()
 
         self.KP = 0.8                 # proportional gain
-        self.MAX_SPEED = 0.05        # max TCP speed, m/s
+        self.MAX_SPEED = 0.2        # max TCP speed, m/s
         self.ACCELERATION = 0.5
         self.SPEEDL_DT = 0.05         # command duration, seconds
 
