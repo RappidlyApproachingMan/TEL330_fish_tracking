@@ -1,3 +1,55 @@
+Camera matrix:
+[[619.03997803   0.         321.36291504]
+ [  0.         618.6003418  250.3637085 ]
+ [  0.           0.           1.        ]]
+Distortion coeffs: [0. 0. 0. 0. 0.]
+
+=== Hand-Eye Calibration ===
+Tips for good calibration:
+  - Move the board to cover all corners of the camera FOV
+  - Include large tilts (±45 degrees) in all directions
+  - Aim for 20+ varied poses
+  - Keep the board fully visible and flat
+
+Press SPACE to record pose, D to delete last pose, ESC when done.
+
+Warning: Ignoring XDG_SESSION_TYPE=wayland on Gnome. Use QT_QPA_PLATFORM=wayland to run on Wayland anyway.
+QFontDatabase: Cannot find font directory /home/karen/Desktop/FISH/TEL330_venv/lib/python3.10/site-packages/cv2/qt/fonts.
+Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
+QFontDatabase: Cannot find font directory /home/karen/Desktop/FISH/TEL330_venv/lib/python3.10/site-packages/cv2/qt/fonts.
+Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
+QFontDatabase: Cannot find font directory /home/karen/Desktop/FISH/TEL330_venv/lib/python3.10/site-packages/cv2/qt/fonts.
+Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
+QFontDatabase: Cannot find font directory /home/karen/Desktop/FISH/TEL330_venv/lib/python3.10/site-packages/cv2/qt/fonts.
+Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
+QFontDatabase: Cannot find font directory /home/karen/Desktop/FISH/TEL330_venv/lib/python3.10/site-packages/cv2/qt/fonts.
+Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
+Pose 01 recorded — TCP: X=-0.563 Y=0.347 Z=0.224 Rx=-0.464 Ry=-1.022 Rz=1.210
+Pose 02 recorded — TCP: X=-0.493 Y=0.417 Z=0.150 Rx=-0.679 Ry=-0.962 Rz=1.122
+Pose 03 recorded — TCP: X=-0.672 Y=0.465 Z=0.296 Rx=-0.263 Ry=-1.008 Rz=1.154
+Pose 04 recorded — TCP: X=-0.579 Y=0.590 Z=0.242 Rx=-0.416 Ry=-0.963 Rz=1.013
+Board not visible — reposition until board is detected
+Pose 05 recorded — TCP: X=-0.568 Y=0.527 Z=0.214 Rx=-0.612 Ry=-0.112 Rz=0.977
+Pose 06 recorded — TCP: X=-0.552 Y=0.363 Z=0.203 Rx=-0.707 Ry=-0.170 Rz=1.090
+Pose 07 recorded — TCP: X=-0.610 Y=0.288 Z=0.216 Rx=-0.673 Ry=-0.217 Rz=1.233
+Pose 08 recorded — TCP: X=-0.578 Y=0.372 Z=0.222 Rx=-0.259 Ry=-1.048 Rz=1.126
+Pose 09 recorded — TCP: X=-0.550 Y=0.539 Z=0.205 Rx=-0.317 Ry=-1.007 Rz=0.969
+Pose 10 recorded — TCP: X=-0.601 Y=0.630 Z=0.182 Rx=-0.275 Ry=-1.007 Rz=0.954
+Pose 11 recorded — TCP: X=-0.729 Y=0.601 Z=0.235 Rx=-0.114 Ry=-1.026 Rz=1.041
+Pose 12 recorded — TCP: X=-0.630 Y=0.576 Z=0.276 Rx=-0.178 Ry=-1.017 Rz=0.981
+Pose 13 recorded — TCP: X=-0.706 Y=0.323 Z=0.233 Rx=-0.386 Ry=-0.187 Rz=1.305
+Pose 14 recorded — TCP: X=-0.401 Y=0.252 Z=0.081 Rx=-0.811 Ry=-0.181 Rz=1.005
+Pose 15 recorded — TCP: X=-0.368 Y=0.605 Z=0.054 Rx=-0.589 Ry=-0.200 Rz=0.716
+Pose 16 recorded — TCP: X=-0.425 Y=0.702 Z=0.081 Rx=-0.425 Ry=-0.346 Rz=0.746
+Board not visible — reposition until board is detected
+Pose 17 recorded — TCP: X=-0.477 Y=0.658 Z=0.129 Rx=-0.360 Ry=0.215 Rz=0.788
+Pose 18 recorded — TCP: X=-0.563 Y=0.566 Z=0.144 Rx=0.121 Ry=-0.931 Rz=0.764
+Board not visible — reposition until board is detected
+Pose 19 recorded — TCP: X=-0.534 Y=0.509 Z=0.163 Rx=0.456 Ry=-0.899 Rz=0.588
+Pose 20 recorded — TCP: X=-0.608 Y=0.467 Z=0.206 Rx=0.583 Ry=-0.627 Rz=0.767
+Pose 21 recorded — TCP: X=-0.634 Y=0.408 Z=0.180 Rx=0.233 Ry=-0.202 Rz=1.108
+Pose 22 recorded — TCP: X=-0.654 Y=0.352 Z=0.146 Rx=0.388 Ry=-0.820 Rz=0.967
+
 Solving with 22 poses...
   TSAI         — mean=82.75 cm   max=109.67 cm
   PARK         — mean=130.25 cm   max=151.06 cm
