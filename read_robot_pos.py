@@ -1,7 +1,7 @@
 import rtde_receive
 import time
 
-rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.100")
+rtde_r = rtde_receive.RTDEReceiveInterface("192.168.56.101")
 
 print("Reading TCP pose every second. Move robot manually or just observe.")
 print("Press Ctrl+C to stop.\n")

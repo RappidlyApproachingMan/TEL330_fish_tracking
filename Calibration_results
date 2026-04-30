@@ -1,0 +1,21 @@
+Solving with 22 poses...
+  TSAI         — mean=82.75 cm   max=109.67 cm
+  PARK         — mean=130.25 cm   max=151.06 cm
+  HORAUD       — mean=69.50 cm   max=102.83 cm
+  ANDREFF      — mean=51.96 cm   max=76.85 cm
+  DANIILIDIS   — mean=79.13 cm   max=112.77 cm
+
+Best method: ANDREFF (mean error 51.96 cm)
+
+T_base_camera:
+[[ 0.75683722  0.0725483  -0.6495646  -0.02379204]
+ [ 0.5710704  -0.5568115   0.60319114 -0.15771562]
+ [-0.31792455 -0.82746462 -0.46284585  0.03178667]
+ [ 0.          0.          0.          1.        ]]
+
+Camera position in base frame:
+  X=-0.024 m  (expected ≈ -1.0)
+  Y=-0.158 m  (expected ≈  0.5)
+  Z=0.032 m  (expected ≈  0.68)
+
+Rotation matrix determinant: 1.000000  (should be 1.0)

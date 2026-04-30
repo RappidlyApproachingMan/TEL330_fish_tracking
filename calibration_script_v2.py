@@ -5,8 +5,8 @@ import rtde_receive
 from scipy.spatial.transform import Rotation
 
 # --- Checkerboard config ---
-BOARD_SIZE  = (8, 6)      # inner corners (cols, rows) — adjust to your board
-SQUARE_SIZE = 0.025       # meters — measure your actual printed squares
+BOARD_SIZE  = (9, 6)      # inner corners (cols, rows) — adjust to your board
+SQUARE_SIZE = 0.022       # meters — measure your actual printed squares
 
 objp = np.zeros((BOARD_SIZE[0] * BOARD_SIZE[1], 3), np.float32)
 objp[:, :2] = np.mgrid[0:BOARD_SIZE[0], 0:BOARD_SIZE[1]].T.reshape(-1, 2)
@@ -31,7 +31,7 @@ print(camera_matrix)
 print("Distortion coeffs:", dist_coeffs)
 
 # --- Robot connection ---
-rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.100")
+rtde_r = rtde_receive.RTDEReceiveInterface("192.168.56.101")
 
 # --- Storage ---
 R_gripper2base_list = []
@@ -208,5 +208,5 @@ else:
     det = np.linalg.det(best_R)
     print(f"\nRotation matrix determinant: {det:.6f}  (should be 1.0)")
 
-    np.save("T_base_camera.npy", T_base_camera)
+    np.save("T_base_camera_2.npy", T_base_camera)
     print("\nSaved to T_base_camera.npy")
