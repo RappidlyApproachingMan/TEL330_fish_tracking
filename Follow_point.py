@@ -30,7 +30,6 @@ we can then use moveL to move the robot asynchronously to the point, and use the
 """
 
 ROBOT_IP = "192.168.56.101"
-SPEED = 0.5
 
 #read t_cam_to_base from  T_base_camera.npy
 #T_CAM_TO_BASE = np.load("TEL330_fish_tracking/T_base_camera.npy")
@@ -138,6 +137,11 @@ class Camera():
             cv2.CHAIN_APPROX_SIMPLE
         )
 
+        MIN_AREA = 200  # adjust this value
+
+        # filter out small contours
+        contours = [cnt for cnt in contours if cv2.contourArea(cnt) > MIN_AREA]
+
         out = src.copy()
 
         # draw only the largest contour
@@ -231,105 +235,144 @@ class Camera():
         P_robot = R @ P_cam + t
 
         return list(P_robot[:3])  # [X, Y, Z] in robot base frame
-        
+
+
 
 class Controller():
     def __init__(self):
         self.rtde_c = rtde_control.RTDEControlInterface(ROBOT_IP)
         self.rtde_r = rtde_receive.RTDEReceiveInterface(ROBOT_IP)
-        
+
         self.camera = Camera()
         self.current_point = None
 
         self.END_EFFECTOR_HEIGHT = 0.40
 
+        self._running = False
+        self._lock = thrd.Lock()
 
-        self._running = False  # Controls whether follow loop is active
-        self._lock = thrd.Lock()  # Protects self.current_point
+        self.KP = 0.8                 # proportional gain
+        self.MAX_SPEED = 0.05        # max TCP speed, m/s
+        self.ACCELERATION = 0.5
+        self.SPEEDL_DT = 0.05         # command duration, seconds
 
     def update_point(self):
         point_3d_camera = self.camera.get_point()
+
         if point_3d_camera is not None:
             camera_point = self.camera.pixel_to_robot_coordinates(point_3d_camera)
-            # add rx, ry, rz to the point for moveL
-            self.current_point = camera_point + [0.0, 3.14, 0.0]
 
-            # note that this gives the x,y,z of the point. We want the arm to follow from above, so z should be the height of the arm.
-            self.current_point[2] = self.END_EFFECTOR_HEIGHT
+            target_point = camera_point + [0.0, 3.14, 0.0]
+            target_point[2] = self.END_EFFECTOR_HEIGHT
+
+            with self._lock:
+                self.current_point = target_point
 
             print(f"Updated point: {self.current_point}")
 
+    def follow_point_speedL(self, target_pose):
+        if target_pose is None:
+            return
 
-    def follow_point(self, point_3d_robot):
-        # Move asynchronously to the detected point in robot coordinates
-        self.update_point()
-        if point_3d_robot is not None:
-            self.rtde_c.moveL(point_3d_robot, SPEED, 0.5, True)
+        current_pose = self.rtde_r.getActualTCPPose()
 
+        dx = target_pose[0] - current_pose[0]
+        dy = target_pose[1] - current_pose[1]
+        dz = target_pose[2] - current_pose[2]
+
+        vx = self.KP * dx
+        vy = self.KP * dy
+        vz = self.KP * dz
+
+        speed_norm = (vx**2 + vy**2 + vz**2) ** 0.5
+
+        if speed_norm > self.MAX_SPEED:
+            scale = self.MAX_SPEED / speed_norm
+            vx *= scale
+            vy *= scale
+            vz *= scale
+
+        # Keep orientation fixed; only translate
+        speed_vector = [vx, vy, vz, 0.0, 0.0, 0.0]
+
+        self.rtde_c.speedL(
+            speed_vector,
+            self.ACCELERATION,
+            self.SPEEDL_DT
+        )
 
     def stop(self):
-        self.rtde_c.stopL()
+        self._running = False
+        self.rtde_c.speedStop()
         cv2.destroyAllWindows()
 
     def run(self):
 
         def detection_loop():
-            """Continuously updates the detected fish point."""
             while True:
-                self.update_point()  # updates self.current_point
+                self.update_point()
+                time.sleep(0.05)
 
         def movement_loop():
-            """Continuously moves the robot to the latest point."""
             while self._running:
                 with self._lock:
                     point = self.current_point
+
                 if point is not None:
-                    self.rtde_c.moveL(point, SPEED, 0.5, True)
-                    time.sleep(5)  # Small delay to prevent spamming commandsq
+                    self.follow_point_speedL(point)
+
+                time.sleep(self.SPEEDL_DT)
+
+            self.rtde_c.speedStop()
 
         update_point_thread = thrd.Thread(target=detection_loop)
         update_point_thread.daemon = True
         update_point_thread.start()
 
-        #move to start position
-        start_position = [-0.400, 0.60, self.END_EFFECTOR_HEIGHT, 0.0, 3.14, 0.0]  # Example start position in robot coordinates
-        self.rtde_c.moveL(start_position, SPEED, 0.5, True)
+        start_position = [
+            -0.400,
+            0.60,
+            self.END_EFFECTOR_HEIGHT,
+            0.0,
+            3.14,
+            0.0
+        ]
 
+        # It is okay to use moveL once for startup positioning
+        self.rtde_c.moveL(start_position, 0.05 , 0.5, True)
 
+        masked = None
 
         while True:
-            depth, color, = self.camera.get_frames()
-            # Chat snakka noe om å legge til masked = None her
-            if self.camera.get_fish_point(color) is not None:
-                _, masked = self.camera.get_fish_point(color)
+            depth, color = self.camera.get_frames()
+
+            fish_result = self.camera.get_fish_point(color)
+            if fish_result is not None:
+                _, masked = fish_result
+
             self.camera.display_frames(color, masked)
 
-            # move_thread = thrd.Thread(target=self.follow_point, args=(self.current_point,), daemon=True)
-            # move_thread.start()
-            
             key = cv2.waitKey(1) & 0xFF
-            
+
             if key == ord("s"):
                 print("Starting movement...")
-                self._running = True
-                movement_thread = thrd.Thread(target=movement_loop, daemon=True)
-                movement_thread.start()
+                if not self._running:
+                    self._running = True
+                    movement_thread = thrd.Thread(
+                        target=movement_loop,
+                        daemon=True
+                    )
+                    movement_thread.start()
 
-            if key == ord("q") or key == 27:  # 'q' or ESC to quit
+            elif key == ord("q") or key == 27:
                 print("Exiting...")
-                self._running = False
                 self.stop()
                 break
-            
-            elif key == ord("e"):  # 'e' to stop movement immediately
+
+            elif key == ord("e"):
                 print("Stopping movement...")
                 self._running = False
-                self.rtde_c.stopL()
-                        
-
-
-
-            
+                self.rtde_c.speedStop()     
 
 if __name__ == "__main__":
     controller = Controller()
