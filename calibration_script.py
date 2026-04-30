@@ -5,8 +5,8 @@ import rtde_receive
 from scipy.spatial.transform import Rotation
 
 # --- Checkerboard config (must match your printed board) ---
-BOARD_SIZE  = (8, 6)      # inner corners (cols, rows)
-SQUARE_SIZE = 0.025       # meters — measure your actual printed squares
+BOARD_SIZE  = (9, 6)      # inner corners (cols, rows)
+SQUARE_SIZE = 0.022       # meters — measure your actual printed squares
 
 objp = np.zeros((BOARD_SIZE[0] * BOARD_SIZE[1], 3), np.float32)
 objp[:, :2] = np.mgrid[0:BOARD_SIZE[0], 0:BOARD_SIZE[1]].T.reshape(-1, 2)
@@ -92,8 +92,16 @@ try:
             t_g2b = np.array(tcp[:3]).reshape(3, 1)
             R_g2b = Rotation.from_rotvec(tcp[3:]).as_matrix()
 
-            R_gripper2base_list.append(R_g2b)
-            t_gripper2base_list.append(t_g2b)
+
+            T_b_g = np.eye(4)
+            T_b_g[:3, :3] = R_g2b
+            T_b_g[:3,  3] = t_g2b.flatten()
+
+            T_g_b = np.linalg.inv(T_b_g)
+
+
+            R_gripper2base_list.append(T_g_b[:3, :3])
+            t_gripper2base_list.append(T_g_b[:3,  3].reshape(3, 1))
             R_board2cam_list.append(R_board2cam)
             t_board2cam_list.append(t_board2cam)
 
@@ -114,7 +122,7 @@ if len(R_gripper2base_list) < 5:
 else:
     print(f"\nSolving with {len(R_gripper2base_list)} poses...")
 
-    R_cam2base, t_cam2base = cv2.calibrateHandEye(
+    R_cam2gripper, t_cam2gripper = cv2.calibrateHandEye(
         R_gripper2base_list,
         t_gripper2base_list,
         R_board2cam_list,
@@ -123,8 +131,8 @@ else:
     )
 
     T_base_camera = np.eye(4)
-    T_base_camera[:3, :3] = R_cam2base
-    T_base_camera[:3,  3] = t_cam2base.flatten()
+    T_base_camera[:3, :3] = R_cam2gripper
+    T_base_camera[:3,  3] = t_cam2gripper.flatten()
 
     print("\nT_base_camera:")
     print(T_base_camera)

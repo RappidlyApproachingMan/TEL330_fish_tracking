@@ -34,7 +34,8 @@ SPEED = 0.5
 
 #read t_cam_to_base from  T_base_camera.npy
 #T_CAM_TO_BASE = np.load("TEL330_fish_tracking/T_base_camera.npy")
-T_CAM_TO_BASE = np.load("TEL330_fish_tracking/T_camera_base.npy")
+#T_CAM_TO_BASE = np.load("TEL330_fish_tracking/T_camera_base.npy")
+T_CAM_TO_BASE = np.load("TEL330_fish_tracking/H_cam2gripper.npy")
 
 
 
@@ -190,14 +191,44 @@ class Camera():
 
         X_c, Y_c, Z_c = point_3d_camera
 
+        # Homogeneous point in camera space 
+        # P_cam = np.array([X_c, Y_c, Z_c]) 
+
+        # # get current pose 
+        # tcp = rtde_receive.getActualTCPPose() 
+        # t_g2b = np.array(tcp[:3]).reshape(3, 1) 
+        # R_g2b = R.from_rotvec(tcp[3:]).as_matrix() 
+
+        # R_cam2gripper = self.T_cam_to_base[:3, :3] 
+        # t_cam2gripper = self.T_cam_to_base[:3, 3].reshape(3, 1)
+
+        # # Compute the transformation from camera to robot base frame 
+        # R_cam2base = R_g2b @ R_cam2gripper 
+        # t_cam2base = R_g2b @ t_cam2gripper + t_g2b
+
         # Homogeneous point in camera space
         P_cam = np.array([X_c, Y_c, Z_c])
 
         R_cam2base = self.T_cam_to_base[:3, :3]
+        #get the inverse of the rotation matrix to get the translation from camera to base
+        R_cam2base = np.linalg.inv(R_cam2base)
         t_cam2base = self.T_cam_to_base[:3,  3]
 
+
+        #manual R and t
+        R =[
+            [0.0527717,-0.81727689,0.5738237 ],
+            [-0.99467694, 0.0079081,   0.1027387 ],
+            [-0.08850382, -0.5761909,  -0.81250915]]
+        t = [-1.07155554,  0.4456387,   1.06818035]
+
+        #make np arrays
+        R = np.array(R)
+        t = np.array(t)
+
         # Apply transform
-        P_robot = R_cam2base @ P_cam + t_cam2base
+        #P_robot = R_cam2base @ P_cam + t_cam2base
+        P_robot = R @ P_cam + t
 
         return list(P_robot[:3])  # [X, Y, Z] in robot base frame
         
