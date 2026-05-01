@@ -29,12 +29,14 @@ ROBOT_IP = "192.168.56.101"
 #T_CAM_TO_BASE = np.load("TEL330_fish_tracking/cam2gripper.npy")
 
 
-def read_calibration(self, filename="calibration.npz"):
-        data = np.load(filename, allow_pickle=True).items()
+def read_calibration(filename="calibration.npz"):
+        data = np.load(filename, allow_pickle=True)
+        print(data.files)
         R = data["R"]
         t = data["t"]
         return R, t
-T_CAM_TO_BASE = read_calibration(None, "TEL330_fish_tracking/cam2gripper.npz")
+#T_CAM_TO_BASE = read_calibration("TEL330_fish_tracking/cam2gripper.npz")
+T_CAM_TO_BASE = read_calibration("TEL330_fish_tracking/calibration.npz")
 
 class Camera():
     def __init__(self):
@@ -98,10 +100,14 @@ class Camera():
         # Process the color image to find the point on the fish (e.g., using color thresholding)
         if self.get_fish_point(color_image) is not None:
             pixel_coords, out = self.get_fish_point(color_image)
-            #print(f"Pixel coordinates of detected point: {pixel_coords}")
+            print(f"Pixel coordinates of detected point: {pixel_coords}")
         else:
             #home position
-            pixel_coords = (75, 300)  #found experimentally
+            pixel_coords = (80, 200)  #found experimentally
+            fake_depth = 1030 # measured
+            point_3d_camera = self.pixel_to_camera_coordinates(pixel_coords, fake_depth)
+            print(f"Using home position pixel coordinates: {pixel_coords}, 3D camera coordinates: {point_3d_camera}")
+            return point_3d_camera
 
         if pixel_coords is None:
             return None
@@ -110,6 +116,7 @@ class Camera():
         #it needs to be the mean of a small window around the pixel coordinates to be more robust to noise
 
         depth_value = np.mean(depth_image[pixel_coords[1]-2:pixel_coords[1]+3, pixel_coords[0]-2:pixel_coords[0]+3])
+        print(f"Depth value at detected point: {depth_value} (raw units), {depth_value * self.depth_scale:.3f} meters")
 
 
         # Convert pixel coordinates and depth value to camera coordinates
@@ -261,7 +268,7 @@ class Controller():
         self._lock = thrd.Lock()
 
         self.KP = 0.8                 # proportional gain
-        self.MAX_SPEED = 0.2        # max TCP speed, m/s NOTE: this acts as a multiplier.  If robot is set to 20% speed, then this is 0.2 * 0.2 = 0.04 m/s max speed.  If robot is set to 100% speed, then this is 0.2 m/s max speed.
+        self.MAX_SPEED = 0.25        # max TCP speed, m/s NOTE: this acts as a multiplier.  If robot is set to 20% speed, then this is 0.2 * 0.2 = 0.04 m/s max speed.  If robot is set to 100% speed, then this is 0.2 m/s max speed.
         self.ACCELERATION = 0.5
         self.SPEEDL_DT = 0.05         # command duration, seconds
 
@@ -284,9 +291,10 @@ class Controller():
             return
         
         current_pose = self.rtde_r.getActualTCPPose()
+        offset = -0.15 
 
         dx = target_pose[0] - current_pose[0]
-        dy = target_pose[1] - current_pose[1]
+        dy = target_pose[1] + offset - current_pose[1]
         dz = target_pose[2] - current_pose[2]
 
         vx = self.KP * dx

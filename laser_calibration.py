@@ -118,7 +118,7 @@ class laserCalibration():
         
 
     def save(self, R, t, filename="calibration.npz"):
-        np.savez(filename, {"R": R, "t": t})
+        np.savez(filename, R=R, t=t)
         print(f"Calibration saved to {filename}")
 
     def read_calibration(self, filename="calibration.npz"):
