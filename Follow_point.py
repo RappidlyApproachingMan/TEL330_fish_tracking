@@ -8,14 +8,6 @@ import pyrealsense2 as rs
 from scipy.spatial.transform import Rotation as R
 import threading as thrd
 
-"""
-Using a realsense camera, we detect the 3d position of the point on the fish.
-using the results from the calibration script we can transform the point from camera coordinates to robot base coordinates.
-we can then use moveL to move the robot asynchronously to the point, and use the opencv window to start and stop the movement.
-
-"""
-
-
 
 
 
@@ -34,9 +26,15 @@ ROBOT_IP = "192.168.56.101"
 #read t_cam_to_base from  T_base_camera.npy
 #T_CAM_TO_BASE = np.load("TEL330_fish_tracking/T_base_camera.npy")
 #T_CAM_TO_BASE = np.load("TEL330_fish_tracking/T_camera_base.npy")
-T_CAM_TO_BASE = np.load("TEL330_fish_tracking/H_cam2gripper.npy")
+#T_CAM_TO_BASE = np.load("TEL330_fish_tracking/cam2gripper.npy")
 
 
+def read_calibration(self, filename="calibration.npz"):
+        data = np.load(filename, allow_pickle=True).items()
+        R = data["R"]
+        t = data["t"]
+        return R, t
+T_CAM_TO_BASE = read_calibration(None, "TEL330_fish_tracking/cam2gripper.npz")
 
 class Camera():
     def __init__(self):
@@ -100,8 +98,10 @@ class Camera():
         # Process the color image to find the point on the fish (e.g., using color thresholding)
         if self.get_fish_point(color_image) is not None:
             pixel_coords, out = self.get_fish_point(color_image)
+            #print(f"Pixel coordinates of detected point: {pixel_coords}")
         else:
-            pixel_coords = None
+            #home position
+            pixel_coords = (75, 300)  #found experimentally
 
         if pixel_coords is None:
             return None
@@ -216,10 +216,7 @@ class Camera():
         # Homogeneous point in camera space
         P_cam = np.array([X_c, Y_c, Z_c])
 
-        R_cam2base = self.T_cam_to_base[:3, :3]
-        #get the inverse of the rotation matrix to get the translation from camera to base
-        R_cam2base = np.linalg.inv(R_cam2base)
-        t_cam2base = self.T_cam_to_base[:3,  3]
+        R_cam2base , t_cam2base = self.T_cam_to_base
 
 
         #manual R and t
@@ -229,13 +226,22 @@ class Camera():
             [-0.08850382, -0.5761909,  -0.81250915]]
         t = [-1.07155554,  0.4456387,   1.06818035]
 
+        # this is the same fucking matrix that i am reading from the file but that one won't work. i bet it's because of how i save it.
+        R2 = [
+            [ 0.0505512,  -0.8501962,   0.52403339],
+            [-0.99856541, -0.03375126,  0.04156889],
+              [-0.01765493, -0.52538297, -0.85068269]]
+        t2 = [-0.99032283,  0.55015257,  1.19973231]
         #make np arrays
         R = np.array(R)
         t = np.array(t)
+        R2 = np.array(R2)
+        t2 = np.array(t2)
 
         # Apply transform
-        #P_robot = R_cam2base @ P_cam + t_cam2base
-        P_robot = R @ P_cam + t
+        P_robot = R_cam2base @ P_cam + t_cam2base
+        #P_robot = R @ P_cam + t
+        #P_robot = R2 @ P_cam + t2
 
         return list(P_robot[:3])  # [X, Y, Z] in robot base frame
 
@@ -255,7 +261,7 @@ class Controller():
         self._lock = thrd.Lock()
 
         self.KP = 0.8                 # proportional gain
-        self.MAX_SPEED = 0.2        # max TCP speed, m/s
+        self.MAX_SPEED = 0.2        # max TCP speed, m/s NOTE: this acts as a multiplier.  If robot is set to 20% speed, then this is 0.2 * 0.2 = 0.04 m/s max speed.  If robot is set to 100% speed, then this is 0.2 m/s max speed.
         self.ACCELERATION = 0.5
         self.SPEEDL_DT = 0.05         # command duration, seconds
 
@@ -276,7 +282,7 @@ class Controller():
     def follow_point_speedL(self, target_pose):
         if target_pose is None:
             return
-
+        
         current_pose = self.rtde_r.getActualTCPPose()
 
         dx = target_pose[0] - current_pose[0]
@@ -288,6 +294,7 @@ class Controller():
         vz = self.KP * dz
 
         speed_norm = (vx**2 + vy**2 + vz**2) ** 0.5
+        print(speed_norm)
 
         if speed_norm > self.MAX_SPEED:
             scale = self.MAX_SPEED / speed_norm
@@ -352,6 +359,8 @@ class Controller():
             fish_result = self.camera.get_fish_point(color)
             if fish_result is not None:
                 _, masked = fish_result
+
+                
 
             self.camera.display_frames(color, masked)
 
